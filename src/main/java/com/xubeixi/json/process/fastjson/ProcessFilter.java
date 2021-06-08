@@ -30,29 +30,36 @@ public class ProcessFilter implements ValueFilter {
                 field = FieldUtils.getResultField(instanceClazz, name);
             }
 
-            //获取加工器List
-            List<ProcessorDefinition> processorDefinitions = ProcessorFactory.getProcessorDefinitions();
-            List<Processor> processors = new ArrayList<>();
-            for (ProcessorDefinition processorDefinition : processorDefinitions) {
-                //检查该域对象是否有自定义注解
-                if (null != field && field.isAnnotationPresent(processorDefinition.getAnnotationClass())) {
-                    //获取注解实例
-                    Annotation annotation = field.getAnnotation(processorDefinition.getAnnotationClass());
-                    //属性使用了自定义注解修饰的才加入相应的加工器
-                    if (annotation != null) {
-                        Processor processor = new Processor(annotation, processorDefinition.getProcessValue());
-                        processors.add(processor);
+            if(null != field) {
+                //获取加工器List
+                List<ProcessorDefinition> processorDefinitions = ProcessorFactory.getProcessorDefinitions();
+                List<Processor> processors = new ArrayList<>();
+
+                //优化根本没加注解的属性
+                Annotation[] annotations = field.getAnnotations();
+                if(annotations.length > 0) {
+                    for (ProcessorDefinition processorDefinition : processorDefinitions) {
+                        //检查该域对象是否有自定义注解
+                        if (field.isAnnotationPresent(processorDefinition.getAnnotationClass())) {
+                            //获取注解实例
+                            Annotation annotation = field.getAnnotation(processorDefinition.getAnnotationClass());
+                            //属性使用了自定义注解修饰的才加入相应的加工器
+                            if (annotation != null) {
+                                Processor processor = new Processor(annotation, processorDefinition.getProcessValue());
+                                processors.add(processor);
+                            }
+                        }
+                    }
+
+                    if (processors.size() > 0) {
+                        ProcessorOrder processorOrder = field.getAnnotation(ProcessorOrder.class);
+                        // 指定了注解顺序则先对processors进行排序
+                        if (processorOrder != null) {
+                            processors = ProcessHandler.orderProcessorsByAnnotationArray(processors, processorOrder.orderlyClasses());
+                        }
+                        value = ProcessHandler.execute(value, processors);
                     }
                 }
-            }
-
-            if (processors.size() > 0) {
-                ProcessorOrder processorOrder = field.getAnnotation(ProcessorOrder.class);
-                // 指定了注解顺序则先对processors进行排序
-                if (processorOrder != null) {
-                    processors = ProcessHandler.orderProcessorsByAnnotationArray(processors, processorOrder.orderlyClasses());
-                }
-                value = ProcessHandler.execute(value, processors);
             }
         }
 
